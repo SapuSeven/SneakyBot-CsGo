@@ -137,7 +137,7 @@ csgo.on('connectedToGC', function () {
 	log("STATUS", "Connected to GC")
 
 	loadFriendProfiles()
-	setTimeout(() => {
+	setInterval(() => {
 		loadFriendProfiles()
 	}, config.refreshInterval)
 })
