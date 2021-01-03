@@ -7,7 +7,7 @@
   "license": "GPL-3.0",
   "private": true,
   "scripts": {
-    "start": "node  -v",
+    "start": "node index.js",
     "build": "pkg -t node12 -o build "
   },
   "dependencies": {
