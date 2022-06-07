@@ -1,30 +1,34 @@
-const csgo = require("./csgo.js")
+const csgo = require('./csgo.js')
+const express = require('express')
+const bodyParser = require('body-parser')
 
-
-const http = require('http')
 const port = 7300
 
-const requestHandler = (request, response) => {
-	console.log("Serving " + request.url)
+const app = express()
+app.use(bodyParser.text({type: 'text/plain'}))
 
-	switch (request.url) {
-	case "/ranks":
-		response.end(JSON.stringify(csgo.ranks))
-		break;
+app.get('/ranks', (req, res) => {
+	res.send(csgo.ranks)
+})
 
-	default:
-		response.statusCode = 404
-		response.end()
-	}
-}
+app.post('/steam/message/:id', async (req, res) => {
+	await csgo.steamMessage(req.params.id, req.body)
+	res.sendStatus(200)
+})
 
-const server = http.createServer(requestHandler)
+app.get('/steam/search/:name', async (req, res) => {
+	const result = csgo.steamFriendSearch(req.params.name)
+	if (result)
+		res.send(result)
+	else
+		res.sendStatus(404)
+})
 
-server.listen(port, (err) => {
+app.listen(port, (err) => {
 	if (err)
-		return console.log("An error occurred:", err)
+		return console.log('An error occurred:', err)
 
-	console.log("Server is listening on port " + port)
+	console.log('Server is listening on port ' + port)
 
 	csgo.start()
 })
