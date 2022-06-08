@@ -47,9 +47,11 @@ function loadFriendProfiles() {
 		loadProfile(sid)
 	})
 
+	const timeout = 1000 * Object.keys(client.myFriends).length + Number(config.refreshInterval)
+	log('INFO', 'Next reload scheduled in ' + timeout + 'ms')
 	setTimeout(() => {
 		loadFriendProfiles()
-	}, 1000 * client.myFriends.length + config.refreshInterval)
+	}, timeout)
 }
 
 async function steamMessage(steamId, message) {
