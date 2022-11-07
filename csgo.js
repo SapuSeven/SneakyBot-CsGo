@@ -6,9 +6,11 @@ const EChatEntryType = require('steam-user/enums/EChatEntryType')
 const log = require('./log.js')
 const config = require('./config.js')
 const EFriendRelationship = require('steam-user/enums/EFriendRelationship')
+const SteamTotp = require('steam-totp')
+const fs = require('fs')
 
-const client = new SteamUser()
-const csgo = new GlobalOffensive(client)
+const user = new SteamUser()
+const csgo = new GlobalOffensive(user)
 
 let friendProfiles = {}
 
@@ -43,11 +45,11 @@ const loadProfile = limiter(sid => {
 }, 1000)
 
 function loadFriendProfiles() {
-	Object.keys(client.myFriends).forEach((sid) => {
+	Object.keys(user.myFriends).forEach((sid) => {
 		loadProfile(sid)
 	})
 
-	const timeout = 1000 * Object.keys(client.myFriends).length + Number(config.refreshInterval)
+	const timeout = 1000 * Object.keys(user.myFriends).length + Number(config.refreshInterval)
 	log('INFO', 'Next reload scheduled in ' + timeout + 'ms')
 	setTimeout(() => {
 		loadFriendProfiles()
@@ -55,14 +57,14 @@ function loadFriendProfiles() {
 }
 
 async function steamMessage(steamId, message) {
-	await client.chat.sendFriendMessage(steamId, message, {chatEntryType: EChatEntryType.ChatMsg})
+	await user.chat.sendFriendMessage(steamId, message, {chatEntryType: EChatEntryType.ChatMsg})
 }
 
 function steamFriendSearch(name) {
-	const friends = Object.entries(client.myFriends)
+	const friends = Object.entries(user.myFriends)
 		.filter(e => e[1] === EFriendRelationship.Friend) // Only actual friends
 		.reduce((result, item) => { // Map SteamID to username
-			result[item[0]] = client.users[item[0]].player_name
+			result[item[0]] = user.users[item[0]].player_name
 			return result
 		}, {})
 
@@ -72,37 +74,50 @@ function steamFriendSearch(name) {
 	}
 }
 
-client.on('loggedOn', function () {
-	log('INFO', 'Login successful. SteamID: ' + client.steamID)
-	log('INFO', 'Use code ' + client.steamID.accountid + ' to add the bot as a friend')
-	client.setPersona(SteamUser.EPersonaState.Online)
+user.on('loggedOn', function () {
+	log('INFO', 'Login successful. SteamID: ' + user.steamID)
+	log('INFO', 'Use code ' + user.steamID.accountid + ' to add the bot as a friend')
+	user.setPersona(SteamUser.EPersonaState.Online)
 	// For new accounts, implement and use requestFreeLicense to request a free CS:GO license
-	client.gamesPlayed(730, true)
+	user.gamesPlayed(730, true)
 })
 
-client.on('error', function (e) {
+user.on('steamGuard', function(domain, callback, lastCodeWrong) {
+	if (lastCodeWrong) {
+		log('ERROR', '2FA code invalid')
+		user.logOff()
+	}
+
+	SteamTotp.getTimeOffset((error, offset) => {
+		const totp = JSON.parse(fs.readFileSync('totp.json'))
+		const code = SteamTotp.getAuthCode(totp.shared_secret, offset)
+		callback(code)
+	})
+})
+
+user.on('error', function (e) {
 	// Some error occurred during logon
 	log('ERROR', e)
 })
 
-client.on('webSession', function () {
+user.on('webSession', function () {
 	log('STATUS', 'Got web session')
 	// Do something with these cookies if you wish
 })
 
-client.on('newItems', function (count) {
+user.on('newItems', function (count) {
 	log('STATUS', count + ' new items in inventory')
 })
 
-client.on('emailInfo', function (address, validated) {
+user.on('emailInfo', function (address, validated) {
 	log('STATUS', 'E-Mail address: ' + address + ' ' + (validated ? '(validated)' : '(not validated)'))
 })
 
-client.on('wallet', function (hasWallet, currency, balance) {
+user.on('wallet', function (hasWallet, currency, balance) {
 	log('STATUS', 'Wallet balance: ' + SteamUser.formatCurrency(balance, currency))
 })
 
-client.on('accountLimitations', function (limited, communityBanned, locked, canInviteFriends) {
+user.on('accountLimitations', function (limited, communityBanned, locked, canInviteFriends) {
 	var limitations = []
 
 	if (limited) {
@@ -128,22 +143,22 @@ client.on('accountLimitations', function (limited, communityBanned, locked, canI
 	}
 })
 
-client.on('vacBans', function (numBans, appids) {
+user.on('vacBans', function (numBans, appids) {
 	log('STATUS', 'VAC ban' + (numBans === 1 ? '' : 's') + ': ' + numBans)
 	if (appids.length > 0) {
 		log('STATUS', 'VAC banned from apps: ' + appids.join(', '))
 	}
 })
 
-client.on('licenses', function (licenses) {
+user.on('licenses', function (licenses) {
 	log('STATUS', 'Account owns ' + licenses.length + ' license' + (licenses.length === 1 ? '' : 's') + '.')
 })
 
-client.on('friendRelationship', function (sid, relationship) {
+user.on('friendRelationship', function (sid, relationship) {
 	log('STATUS', 'Relationship of ' + sid + ' changed to ' + SteamUser.EFriendRelationship[relationship])
 
 	if (relationship === SteamUser.EFriendRelationship.RequestRecipient) {
-		client.addFriend(sid, function (err, personaName) {
+		user.addFriend(sid, function (err, personaName) {
 			if (err)
 				log('WARN', 'Error adding friend: ' + err)
 			else
@@ -152,8 +167,8 @@ client.on('friendRelationship', function (sid, relationship) {
 	}
 })
 
-client.on('friendsList', function () {
-	log('STATUS', 'Friend list: ' + Object.keys(client.myFriends).map(sid => sid + ' (' + SteamUser.EFriendRelationship[client.myFriends[sid]] + ')').join(', '))
+user.on('friendsList', function () {
+	log('STATUS', 'Friend list: ' + Object.keys(user.myFriends).map(sid => sid + ' (' + SteamUser.EFriendRelationship[user.myFriends[sid]] + ')').join(', '))
 })
 
 csgo.on('connectedToGC', function () {
@@ -185,7 +200,7 @@ module.exports = {
 	start: () => {
 		log('INFO', 'Logging in')
 
-		client.logOn(config.account)
+		user.logOn(config.account)
 	},
 	steamMessage,
 	steamFriendSearch,
