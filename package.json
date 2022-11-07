@@ -1,5 +1,5 @@
 {
-  "name": "CsGoRankBot",
+  "name": "csgo-rank-bot",
   "version": "1.0.0",
   "description": "A bot that acts as a Steam client and provides a server to request CS:GO Rank Information",
   "main": "",
@@ -8,7 +8,8 @@
   "private": true,
   "scripts": {
     "start": "node index.js",
-    "build": "pkg -t node12 -o build "
+    "build": "pkg -t node12 -o build ",
+    "auth": "node auth.js"
   },
   "dependencies": {
     "body-parser": "^1.20.0",
